@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.kakaopay.invest.mapper.InvestMapper">
+    <select id="listProduct" resultType="InvestVO">
+        <![CDATA[
+        select
+            a.product_id
+             ,a.title
+             ,a.total_investing_amount
+             ,nvl(count( b.amount),0) invest_num
+             ,case when a.total_investing_amount > nvl(sum( b.amount),0) then '모집중'
+                   else '모집완료'
+              end invest_status
+             ,a.start_at
+             ,a.finished_at
+             ,nvl(sum( b.amount),0) amount
+        from product_info a ,
+             (
+                select user_id
+                       , product_id
+                       , sum(amount) amount
+                  from invest_info
+                group by user_id , product_id
+              )b
+        where a.start_at < sysdate
+          and a.finished_at > sysdate
+          and a.product_id = b.product_id(+)
+        group by a.product_id,a.title,a.total_investing_amount,a.start_at,a.finished_at
+        order by a.product_id
+        ]]>
+    </select>
+
+    <insert id="investProduct">
+        <![CDATA[
+        insert into invest_info (
+                               user_id
+                              ,product_id
+                              ,amount
+                              ,invest_date
+        )
+        select #{user_id} , product_id , add_amount , sysdate
+        from
+            (
+                select
+                    a.product_id
+                     ,a.total_investing_amount
+                     ,nvl(sum( b.amount),0) amount
+                     , #{amount} add_amount
+                from product_info a , invest_info b
+                where a.product_id = #{product_id}
+                  and a.product_id = b.product_id(+)
+                group by a.product_id,a.title,a.total_investing_amount,a.start_at,a.finished_at
+            )
+        where total_investing_amount >= (amount+add_amount)
+        ]]>
+    </insert>
+
+    <select id="listInvest" resultType="InvestVO">
+        <![CDATA[
+        select
+            a.PRODUCT_ID
+             ,a.TITLE
+             ,a.TOTAL_INVESTING_AMOUNT
+             ,b.amount
+             ,b.invest_date
+        from product_info a , invest_info b
+        where a.product_id = b.product_id
+          and b.user_id = #{user_id}
+        order by a.product_id , b.invest_date
+        ]]>
+    </select>
+
+    <delete id="deleteInitInvest">
+        <![CDATA[
+            delete from invest_info
+        ]]>
+    </delete>
+
+    <delete id="deleteInitProduct">
+        <![CDATA[
+        delete from product_info
+        ]]>
+    </delete>
+
+    <insert id="insertInitProduct">
+        <![CDATA[
+        INSERT INTO PRODUCT_INFO(PRODUCT_ID, TITLE, TOTAL_INVESTING_AMOUNT, START_AT, FINISHED_AT)
+        VALUES ('1', '부동산투자상품', '10000', sysdate -10, sysdate +1)
+        ]]>
+    </insert>
+</mapper>
